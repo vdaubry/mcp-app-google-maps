@@ -1,0 +1,12 @@
+src/
+app/
+node_modules/
+tsconfig.json
+vitest.config.ts
+.gitignore
+.github/
+*.test.ts
+*.test.tsx
+coverage/
+.env
+.env.*

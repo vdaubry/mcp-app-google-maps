@@ -1,0 +1,60 @@
+{
+  "name": "@vdaubry/mcp-app-google-maps",
+  "version": "0.1.0",
+  "description": "Google Maps MCP App (SEP-1865) — directions, places, geocoding, with an embedded interactive map widget.",
+  "type": "module",
+  "license": "MIT",
+  "author": "Vincent Daubry",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/vdaubry/mcp-app-google-maps"
+  },
+  "keywords": [
+    "mcp",
+    "model-context-protocol",
+    "sep-1865",
+    "google-maps",
+    "directions",
+    "places",
+    "claude-desktop"
+  ],
+  "bin": {
+    "mcp-app-google-maps": "./dist/server.js"
+  },
+  "main": "./dist/server.js",
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "build": "npm run build:app && npm run build:server",
+    "build:server": "tsc -p tsconfig.json && chmod +x dist/server.js",
+    "build:app": "vite build --config app/vite.config.ts",
+    "start": "node dist/server.js",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p app/tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.27.1",
+    "@modelcontextprotocol/ext-apps": "^1.7.0",
+    "zod": "^4.0.0"
+  },
+  "devDependencies": {
+    "@preact/preset-vite": "^2.10.0",
+    "@preact/signals": "^2.8.2",
+    "@types/google.maps": "^3.58.1",
+    "@types/node": "^22.0.0",
+    "@vis.gl/react-google-maps": "^1.5.5",
+    "preact": "^10.29.0",
+    "tsx": "^4.20.0",
+    "typescript": "^5.7.0",
+    "vite": "^7.0.0",
+    "vite-plugin-singlefile": "^2.3.0",
+    "vitest": "^3.0.0"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}
