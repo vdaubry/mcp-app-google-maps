@@ -14,6 +14,7 @@ import { APIProvider, Map } from '@vis.gl/react-google-maps';
 import { loadMapsApi } from '../lib/maps-loader';
 import { Loading, ErrorBox } from './Common';
 import type { Bounds, LatLng } from '../lib/types';
+import { initialView } from '../lib/geo';
 
 interface Props {
   center?: LatLng;
@@ -52,21 +53,16 @@ export function MapCanvas({
   if (error) return <ErrorBox>Map failed to load: {error}</ErrorBox>;
   if (!apiKey) return <Loading>Loading map…</Loading>;
 
-  // Compute initial center/zoom from `bounds` if explicit center is missing.
-  const initialCenter = center ?? (bounds
-    ? {
-        lat: (bounds.northeast.lat + bounds.southwest.lat) / 2,
-        lng: (bounds.northeast.lng + bounds.southwest.lng) / 2,
-      }
-    : { lat: 0, lng: 0 });
+  // Explicit center, else the bounds midpoint, else a world view (never (0,0) at zoom 14).
+  const view = initialView(center, bounds, zoom);
 
   return (
     <div style={`width:100%;height:${height}px;border-radius:8px;overflow:hidden`}>
       <APIProvider apiKey={apiKey}>
         <Map
           mapId="yapa-maps-mcp-app"
-          defaultCenter={initialCenter}
-          defaultZoom={zoom ?? 14}
+          defaultCenter={view.center}
+          defaultZoom={view.zoom}
           gestureHandling="greedy"
           disableDefaultUI={false}
           onIdle={(ev) => {
