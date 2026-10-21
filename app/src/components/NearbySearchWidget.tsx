@@ -17,6 +17,7 @@ import { isNearbySearchPayload } from '../lib/mcp-client';
 import { MapCanvas } from './MapCanvas';
 import { PlaceCard } from './PlaceCard';
 import { ErrorBox, formatDistance, haversineMeters, priceGlyph } from './Common';
+import { boundsCenter, boundsOf, hasArea, toLiteral } from '../lib/geo';
 
 interface Props {
   payload: NearbySearchPayload;
@@ -46,6 +47,13 @@ function defaultRadius(payload: NearbySearchPayload): number {
 export function NearbySearchWidget({ payload, client, onSwap }: Props) {
   const places: Place[] = payload.places ?? (payload.place ? [payload.place] : []);
   const center: LatLng | null = payload.center;
+  // `search_places` without `locationBias` returns `center: null`. The map then
+  // opens on the results themselves: centred on them, and fitted to them once
+  // the map exists when there are several.
+  const placesBounds = useMemo(() => boundsOf(places.map(p => p.location)), [places]);
+  // Reference point for the "Search this area" pill when the search had no centre.
+  const panOrigin: LatLng | null = center ?? (placesBounds ? boundsCenter(placesBounds) : null);
+  const mapRef = useRef<google.maps.Map | null>(null);
 
   const [filters, setFilters] = useState<FilterState>({ ...DEFAULT_FILTERS, radiusM: defaultRadius(payload) });
   const [hoveredId, setHoveredId] = useState<string | null>(null);
@@ -75,14 +83,30 @@ export function NearbySearchWidget({ payload, client, onSwap }: Props) {
     }
   }, []);
 
+  function fitToResults(map: google.maps.Map) {
+    if (center || !placesBounds) return;
+    if (hasArea(placesBounds)) map.fitBounds(toLiteral(placesBounds), 48);
+    else map.setCenter(placesBounds.northeast);
+  }
+
+  function onMapReady(map: google.maps.Map) {
+    mapRef.current = map;
+    fitToResults(map);
+  }
+
+  // A swapped payload (refine / search this area) re-frames a centre-less search.
+  useEffect(() => {
+    if (mapRef.current) fitToResults(mapRef.current);
+  }, [payload.version]);
+
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   function onMapCenterChanged(c: LatLng) {
     setCurrentMapCenter(c);
     if (debounceRef.current) clearTimeout(debounceRef.current);
-    if (!center) return;
+    if (!panOrigin) return;
     debounceRef.current = setTimeout(() => {
-      const distance = haversineMeters(c, center);
+      const distance = haversineMeters(c, panOrigin);
       // Show "Search this area" once the user has panned > 50% of original radius.
       setShowSearchArea(distance > defaultRadius(payload) * 0.5);
     }, 250);
@@ -198,8 +222,10 @@ export function NearbySearchWidget({ payload, client, onSwap }: Props) {
       <div style="position:relative;margin:8px 12px">
         <MapCanvas
           center={center ?? undefined}
+          bounds={center ? undefined : placesBounds ?? undefined}
           zoom={14}
           height={280}
+          onMapReady={onMapReady}
           onCenterChanged={onMapCenterChanged}
         >
           {visible.map((p, i) => (

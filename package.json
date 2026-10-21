@@ -1,6 +1,6 @@
 {
   "name": "@vdaubry/mcp-app-google-maps",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Google Maps MCP App (SEP-1865) — directions, places, geocoding, with an embedded interactive map widget.",
   "type": "module",
   "license": "MIT",

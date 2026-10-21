@@ -10,9 +10,10 @@
  * (used on voice / WhatsApp / SMS) can speak them.
  */
 
-import { useCallback, useEffect, useRef, useState } from 'preact/hooks';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'preact/hooks';
 import { AdvancedMarker } from '@vis.gl/react-google-maps';
-import type { DirectionsPayload, TravelMode, WidgetPayload } from '../lib/types';
+import type { DirectionsPayload, LatLng, TravelMode, WidgetPayload } from '../lib/types';
+import { decodePolyline, toLiteral } from '../lib/geo';
 import type { MapsMcpClient } from '../lib/mcp-client';
 import { isDirectionsPayload } from '../lib/mcp-client';
 import { MapCanvas } from './MapCanvas';
@@ -43,33 +44,17 @@ function buildOpenInMapsUrl(payload: DirectionsPayload): string {
 export function DirectionsWidget({ payload, client, onSwap }: Props) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [polylinePath, setPolylinePath] = useState<google.maps.LatLngLiteral[] | null>(null);
   const mapRef = useRef<google.maps.Map | null>(null);
   const polylineRef = useRef<google.maps.Polyline | null>(null);
 
   const bounds = payload.route.bounds;
 
-  // Decode the polyline. We poll briefly for google.maps because `loadMapsApi()`
-  // resolves asynchronously and this effect can fire before the JS API is ready
-  // (the parent component renders before MapCanvas finishes its lazy load).
-  useEffect(() => {
-    if (!payload.route.polyline) { setPolylinePath(null); return; }
-    let cancelled = false;
-    let timer: ReturnType<typeof setTimeout> | null = null;
-    const tryDecode = () => {
-      if (cancelled) return;
-      const enc = window.google?.maps?.geometry?.encoding;
-      if (!enc) { timer = setTimeout(tryDecode, 100); return; }
-      const path = enc.decodePath(payload.route.polyline)
-        .map(p => ({ lat: p.lat(), lng: p.lng() }));
-      setPolylinePath(path);
-    };
-    tryDecode();
-    return () => {
-      cancelled = true;
-      if (timer) clearTimeout(timer);
-    };
-  }, [payload.route.polyline]);
+  // Decoded locally (lib/geo): no wait on the `geometry` library, so a route
+  // can never stay undrawn because that library failed to load.
+  const polylinePath = useMemo<LatLng[] | null>(
+    () => (payload.route.polyline ? decodePolyline(payload.route.polyline) : null),
+    [payload.route.polyline],
+  );
 
   const start = polylinePath?.[0] ?? null;
   const end = polylinePath ? polylinePath[polylinePath.length - 1] : null;
@@ -85,7 +70,10 @@ export function DirectionsWidget({ payload, client, onSwap }: Props) {
       polylineRef.current.setMap(null);
       polylineRef.current = null;
     }
-    if (!polylinePath || polylinePath.length === 0) return;
+    if (!polylinePath || polylinePath.length === 0) {
+      if (bounds) map.fitBounds(toLiteral(bounds), 32);
+      return;
+    }
 
     polylineRef.current = new window.google.maps.Polyline({
       path: polylinePath,
@@ -98,12 +86,7 @@ export function DirectionsWidget({ payload, client, onSwap }: Props) {
 
     // Re-fit bounds to the route on every redraw (mode swap can change the path).
     if (bounds) {
-      map.fitBounds({
-        north: bounds.northeast.lat,
-        east: bounds.northeast.lng,
-        south: bounds.southwest.lat,
-        west: bounds.southwest.lng,
-      }, 32);
+      map.fitBounds(toLiteral(bounds), 32);
     } else {
       const b = new window.google.maps.LatLngBounds();
       for (const p of polylinePath) b.extend(p);
